@@ -6,6 +6,14 @@ const USE_PROXY_ON_FAIL = true;
 
 const state = { all: window.INIT_DATA || [], filtered: [], view: 'flip' };
 let _softTimer=null;
+
+function applyCachedGenre(rec){
+  const gKey = 'genre:' + (rec.artist||'').toLowerCase() + '|' + (rec.title||'').toLowerCase();
+  const cached = cache.get(gKey);
+  if((!rec.genre || !rec.genre.trim()) && cached){ rec.genre = cached; }
+  return rec;
+}
+
 function scheduleSoftRender(){ if(_softTimer) return; _softTimer=setTimeout(()=>{ _softTimer=null; try{ render(); }catch(e){} }, 500); }
 let fuse = null;
 let currentQuery = "";
@@ -32,7 +40,7 @@ function mapRecord(r, i){
   const fallback = album || `Untitled #${i+1}`;
   return { title: fallback, artist: artist||'Unknown Artist', genre, label, format, color, notes, cover, url, _raw:r };
 }
-function normalizeData(arr){ return (arr||[]).map(mapRecord); }
+function normalizeData(arr){ return (arr||[]).map(mapRecord).map(applyCachedGenre); }
 
 // search
 function buildFuse(items){ if(!window.Fuse){ fuse = null; return; } fuse = new Fuse(items, {keys:[{name:'title',weight:0.5},{name:'artist',weight:0.48},{name:'genre',weight:0.02}], includeScore:true, threshold:0.35, ignoreLocation:true, minMatchCharLength:2}); }
@@ -53,6 +61,34 @@ function strictOk(rec,cand){ const ar1=NOR_FLAT(rec.artist), ar2=NOR_FLAT(cand.a
 async function itunesSearch(term, attribute){ const q=encodeURIComponent(term); const attr=attribute?`&attribute=${attribute}`:''; const url=`https://itunes.apple.com/search?media=music&entity=album&limit=50&term=${q}${attr}`; return withTimeout((ctl)=>fetchJson(url,ctl),8000); }
 function deezerJSONP(url,timeout=9000){ return new Promise((resolve,reject)=>{ const cb='__dz_cb_'+Math.random().toString(36).slice(2); const s=document.createElement('script'); const cleanup=()=>{ try{delete window[cb];}catch{}; if(s.parentNode) s.parentNode.removeChild(s); clearTimeout(tid); }; const tid=setTimeout(()=>{cleanup();reject(new Error('timeout'));},timeout); window[cb]=(data)=>{cleanup();resolve(data);}; s.src=url+(url.includes('?')?'&':'?')+'output=jsonp&callback='+cb; s.onerror=()=>{cleanup();reject(new Error('script error'));}; document.head.appendChild(s); }); }
 async function fetchITunesStrict(rec){ const tries=[ await itunesSearch(`${rec.artist} ${rec.title}`,''), await itunesSearch(`${rec.artist}`,'artistTerm'), await itunesSearch(`${rec.title}`,'albumTerm') ]; for(const d of tries){ if(!d||!d.results||!d.results.length) continue; const exact=d.results.find(r=>strictOk(rec,r)&&r.artworkUrl100); if(exact){ return exact.artworkUrl100.replace('100x100bb','1200x1200bb'); } } return null; }
+
+async function mbSearchReleaseGroup(rec){
+  const artist = encodeURIComponent(rec.artist);
+  const title  = encodeURIComponent(rec.title);
+  const q = `artist:"${rec.artist}" AND release:"${rec.title}"`;
+  const url = 'https://r.jina.ai/http://musicbrainz.org/ws/2/release-group/?query=' + encodeURIComponent(q) + '&fmt=json&limit=1';
+  try{
+    const res = await fetch(url, {cache:'no-store'});
+    const txt = await res.text();
+    const data = JSON.parse(txt);
+    const rg = (data['release-groups']||[])[0];
+    return rg && rg.id ? rg.id : null;
+  }catch(e){ return null; }
+}
+async function fetchCoverArtArchive(rec){
+  const mbid = await mbSearchReleaseGroup(rec);
+  if(!mbid) return null;
+  const trySizes = ['1200','1000','800','500','250'];
+  for(const size of trySizes){
+    const url = `https://coverartarchive.org/release-group/${mbid}/front-${size}`;
+    try{ await loadImage(url); return url; }catch{}
+  }
+  // fallback generic front
+  const url = `https://coverartarchive.org/release-group/${mbid}/front`;
+  try{ await loadImage(url); return url; }catch{}
+  return null;
+}
+
 async function fetchDeezerStrict(rec){ const q=encodeURIComponent(`artist:"${rec.artist}" album:"${rec.title}"`); const data=await deezerJSONP(`https://api.deezer.com/search/album?q=${q}`,9000); const list=(data&&data.data)||[]; const exact=list.find(a=>NOR_FLAT(a.artist&&a.artist.name)===NOR_FLAT(rec.artist) && titleKey(a.title)===titleKey(rec.title)); if(exact){ return exact.cover_xl || exact.cover_big || exact.cover_medium || null; } return null; }
 
 async function attemptArtwork(rec, coverEl, force=false){
@@ -61,7 +97,7 @@ async function attemptArtwork(rec, coverEl, force=false){
   const apply=async (url)=>{ if(!url) return false; try{ await loadImage(url); applyCover(coverEl,url); rec.cover=url; cache.set(key,url); return true; }catch{ return false; } };
   const srcKey='artSrc:'+key;
   let stepIx=Number(localStorage.getItem(srcKey)||'0');
-  const steps=[ ()=>sanitizeCoverURL(rec.cover||""), ()=> (USE_PROXY_ON_FAIL && rec.cover? proxyURL(sanitizeCoverURL(rec.cover)) : ""), ...(MIN_INFO?[ async()=> await fetchITunesStrict(rec), async()=> await fetchDeezerStrict(rec) ]:[]) ];
+  const steps=[ ()=>sanitizeCoverURL(rec.cover||""), ()=> (USE_PROXY_ON_FAIL && rec.cover? proxyURL(sanitizeCoverURL(rec.cover)) : ""), ...(MIN_INFO?[ async()=> await fetchITunesStrict(rec), async()=> await fetchDeezerStrict(rec), async()=> await fetchCoverArtArchive(rec) ]:[]) ];
   if(!force){ const cached=cache.get(key); if(cached && await apply(cached)){ maybeFetchGenre(rec); return; } }
   for(let i=stepIx;i<steps.length;i++){ let candidate=steps[i]; try{ candidate=typeof candidate==='function'? await candidate() : candidate; if(await apply(candidate)){ localStorage.setItem(srcKey,String(i)); maybeFetchGenre(rec); return; } }catch{} localStorage.setItem(srcKey,String(i+1)); }
   if(force){ localStorage.removeItem(srcKey); }
@@ -142,7 +178,7 @@ function applySearch(q){ currentQuery=q||''; const parts=currentQuery.toLowerCas
 
 // stats
 function splitGenres(s){ return (s||'').split(/[\/,;&|•·]+|\s+\band\b\s+|\s*\+\s*/i).map(t=>t.trim()).filter(Boolean).map(x=>x.replace(/\b\w/g,m=>m.toUpperCase())); }
-function buildStats(items){ const all=normalizeData(items); const total=all.length; const gset=new Set(); const gcount=new Map();
+function buildStats(items){ const all=normalizeData(items).map(applyCachedGenre); const total=all.length; const gset=new Set(); const gcount=new Map();
   for(const r of all){ for(const g of splitGenres(r.genre)){ gset.add(g); const key=g.toLowerCase(); gcount.set(key,(gcount.get(key)||0)+1);} }
   const topGenres=Array.from(gcount.entries()).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,v])=>[k.replace(/\b\w/g,m=>m.toUpperCase()),v]);
   const artistCount=new Map(); for(const r of all){ if(r.artist) artistCount.set(r.artist,(artistCount.get(r.artist)||0)+1); }
