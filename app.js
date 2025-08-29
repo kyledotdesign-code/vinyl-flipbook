@@ -62,6 +62,31 @@ function build(){
   prefetchArtwork(state.filtered);
 }
 
+
+/* ---------- Scrolling helpers ---------- */
+function getScroller(){ return document.getElementById('scroller'); }
+function getCards(){ return Array.from(getScroller().querySelectorAll('.card')); }
+function getCurrentIndex(){
+  const scroller = getScroller();
+  const center = scroller.scrollLeft + scroller.clientWidth/2;
+  const cards = getCards();
+  let bestI = 0, bestD = Infinity;
+  cards.forEach((el,i)=>{
+    const rect = el.getBoundingClientRect();
+    const left = rect.left + scroller.scrollLeft - scroller.getBoundingClientRect().left;
+    const mid = left + rect.width/2;
+    const d = Math.abs(mid - center);
+    if(d < bestD){ bestD = d; bestI = i; }
+  });
+  return bestI;
+}
+function scrollToIndex(i){
+  const cards = getCards();
+  if(!cards.length) return;
+  const clamped = Math.max(0, Math.min(cards.length-1, i));
+  cards[clamped].scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+}
+
 function render(){
   const root = document.querySelector('#carousel');
   root.innerHTML = '';
@@ -75,7 +100,7 @@ function render(){
 
   // Make wheel scroll horizontal
   scroller.addEventListener('wheel', (e)=>{
-    if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){
+    if(Math.abs(e.deltaY) >= Math.abs(e.deltaX)){ scroller.scrollLeft += e.deltaY; } else { scroller.scrollLeft += e.deltaX; }
       scroller.scrollLeft += e.deltaY;
       e.preventDefault();
     }
@@ -271,6 +296,10 @@ async function importFile(file){
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
+  // nav buttons & menu toggle
+  document.getElementById('prevBtn').onclick = ()=>{ const sc=document.getElementById('scroller'); sc.scrollBy({left:-window.innerWidth*0.8,behavior:'smooth'}); };
+  document.getElementById('nextBtn').onclick = ()=>{ const sc=document.getElementById('scroller'); sc.scrollBy({left:window.innerWidth*0.8,behavior:'smooth'}); };
+  document.getElementById('menuToggle').onclick = ()=>{ document.querySelector('.controls').classList.toggle('show'); };
   document.querySelector('#search').addEventListener('input', (e)=>{ applySearch(e.target.value); render(); });
   document.querySelector('#sort').addEventListener('change', (e)=>{ sortBy(e.target.value); render(); });
   document.querySelector('#shuffle').addEventListener('click', ()=>{ state.filtered.sort(()=>Math.random()-.5); render(); });

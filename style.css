@@ -22,7 +22,7 @@ select,.btn,.file-btn,.icon-btn{background:var(--card);color:var(--text);border:
 .icon-btn{font-size:16px;padding:8px 10px}
 main{position:absolute;inset:64px 0 54px 0;display:grid;place-items:stretch;overflow:hidden}
 /* Scrollable row */
-#scroller{position:relative;height:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x: contain;scroll-snap-type: x mandatory;display:flex;gap:24px;padding:24px 28px;-webkit-overflow-scrolling:touch;touch-action: pan-x pinch-zoom;}
+#scroller{position:relative;height:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x: contain;scroll-snap-type: x mandatory;display:flex;gap:24px;padding:24px 28px;-webkit-overflow-scrolling:touch;touch-action: pan-x pinch-zoom;scroll-behavior:smooth;}
 #scroller::-webkit-scrollbar{height:10px}
 #scroller::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:999px}
 .card{touch-action: pan-x pinch-zoom; -webkit-tap-highlight-color: transparent; flex:0 0 auto;width:min(340px,42vw);height:min(340px,42vw);scroll-snap-align:center;position:relative;transform-style:preserve-3d;
@@ -61,6 +61,36 @@ mark.search-hit{background: rgba(110,231,243,.28); color: inherit; padding:0 .15
 .backface-hidden{backface-visibility:hidden; -webkit-backface-visibility:hidden;}
 @media (max-width: 720px){
   #search{width: 70vw}
-  #scroller{gap:18px; padding:18px 16px}
+  #scroller{position:relative;height:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x: contain;scroll-snap-type: x mandatory;display:flex;gap:24px;padding:24px 28px;-webkit-overflow-scrolling:touch;touch-action: pan-x pinch-zoom;scroll-behavior:smooth;}
   .card{ width: 84vw; height: 84vw }
+}
+
+/* Nav buttons */
+.nav-btn{
+  position:absolute; top:50%; transform:translateY(-50%);
+  background:rgba(0,0,0,.45); border:none; color:white;
+  font-size:28px; font-weight:700; width:44px; height:64px;
+  border-radius:10px; cursor:pointer; z-index:5;
+}
+#prevBtn{ left:8px; }
+#nextBtn{ right:8px; }
+
+/* Collapsible menu */
+.menu-bar{display:flex;align-items:center;width:100%}
+.menu-btn{display:none;background:var(--card);color:var(--text);
+  border:1px solid rgba(255,255,255,.08);padding:10px 14px;border-radius:10px;cursor:pointer;font-size:20px}
+@media (max-width: 720px){
+  .controls{display:none;flex-direction:column;align-items:stretch;width:100%;margin-top:8px}
+  .controls.show{display:flex}
+  .menu-btn{display:block;margin-right:auto}
+  h1{font-size:16px}
+}
+
+/* Collapsible controls on mobile */
+#menuToggle{display:none}
+@media (max-width: 720px){
+  #menuToggle{display:inline-flex}
+  .controls{display:none}
+  .controls.open{display:flex}
+  .app-header{flex-wrap:wrap}
 }

@@ -16,7 +16,9 @@
       <div class="logo">🎵</div>
       <h1>Vinyl Flipbook</h1>
     </div>
-    <div class="controls">
+    <div class="menu-bar">
+      <button id="menuToggle" class="menu-btn">☰</button>
+      <div class="controls">
       <input id="search" type="search" placeholder="Search artist, album, year, genre…" spellcheck="false"/>
       <select id="sort">
         <option value="title">Sort: Title</option>
@@ -29,11 +31,15 @@
         <input id="fileInput" type="file" accept=".json,.csv" />
         Import CSV/JSON
       </label>
-      <button id="fullscreen" class="icon-btn" title="Toggle Fullscreen">⛶</button>
+      
+    </div>
+        </div>
     </div>
   </header>
 
   <main>
+    <button id="prevBtn" class="nav-btn">⟨</button>
+    <button id="nextBtn" class="nav-btn">⟩</button>
     <div id="carousel" class="carousel" aria-live="polite"></div>
   </main>
 
