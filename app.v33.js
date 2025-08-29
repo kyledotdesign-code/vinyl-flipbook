@@ -71,8 +71,33 @@ function hasMinInfo(rec){ const a=(rec.artist||'').trim().toLowerCase(), t=(rec.
 function withTimeout(promise, ms=8000){ const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms); return Promise.race([ promise(ctl), new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms+50)) ]).finally(()=>clearTimeout(t)); }
 function fetchJson(url,ctl){ return fetch(url,{mode:'cors', cache:'no-store', signal:ctl.signal}).then(r=>r.ok?r.json():null); }
 function loadImage(url){ return new Promise((resolve,reject)=>{ const img=new Image(); img.onload=()=>resolve(url); img.onerror=reject; img.referrerPolicy='no-referrer'; img.src=url; }); }
-function sanitizeCoverURL(u){ if(!u) return ""; let url=u.trim(); let m=url.match(/drive\.google\.com\/file\/d\/([^\/]+)\//); if(m){ return `https://drive.google.com/uc?export=download&id=${m[1]}`; } m=url.match(/drive\.google\.com\/open\?id=([^&]+)/); if(m){ return `https://drive.google.com/uc?export=download&id=${m[1]}`; } if(/dropbox\.com/.test(url)){ url=url.replace('www.dropbox.com','dl.dropboxusercontent.com'); url=url.replace(/(\?|&)dl=0/,''); return url; } m=url.match(/imgur\.com\/(a|gallery)\/([A-Za-z0-9]+)/); if(m){ return `https://i.imgur.com/${m[2]}.jpg`; } m=url.match(/imgur\.com\/([A-Za-z0-9]+)$/); if(m && !/i\.imgur\.com/.test(url)){ return `https://i.imgur.com/${m[1]}.jpg`; } return url; }
-function proxyURL(u){ try{ const clean=u.replace(/^https?:\/\//,''); return 'https://images.weserv.nl/?url='+encodeURIComponent(clean)+'&w=1200&h=1200&fit=cover&we'; }catch{ return u; } }
+function sanitizeCoverURL(u){
+  if(!u) return "";
+  try{
+    u = (""+u).trim();
+    // Google Drive share -> direct
+    const m = u.match(/[-\w]{25,}/);
+    if(u.includes("drive.google.com") && m){
+      return `https://drive.google.com/uc?export=download&id=${m[0]}`;
+    }
+    // Dropbox share -> direct
+    if(u.includes("dropbox.com")){
+      return u.replace("www.dropbox.com","dl.dropboxusercontent.com").replace("?dl=0","");
+    }
+    return u;
+  }catch{return (""+u)}
+}
+function proxyURL(u){
+  if(!u) return "";
+  try{
+    const host = new URL(u).host;
+    if(host.includes('googleusercontent') || host.includes('drive.google.com')){
+      return ""; // avoid images.weserv for google hosts
+    }
+    const stripped = u.replace(/^https?:\/\//,'');
+    return `https://images.weserv.nl/?url=${encodeURIComponent(stripped)}`;
+  }catch{ return "" }
+}
 function stripCommonEdits(s){ return (s||'').toLowerCase().replace(/deluxe|expanded|edition|remaster|remastered|explicit|clean|version|anniversary|bonus|mono|stereo|original/g,''); }
 function titleKey(s){ s=stripCommonEdits(s); s=s.replace(/(volume|vol|vol\.)\s*/g,''); s=s.replace(/\([^)]*\)/g,''); s=s.replace(/[^a-z0-9]/g,''); return s; }
 function strictOk(rec,cand){ const ar1=NOR_FLAT(rec.artist), ar2=NOR_FLAT(cand.artistName); const t1=titleKey(rec.title), t2=titleKey(cand.collectionName); if(!(ar1 && ar1===ar2)) return false; if(t1 && t1===t2) return true; if(t1 && (t2.startsWith(t1)||t2.endsWith(t1)||t2.includes(t1))) return true; return false; }
@@ -110,10 +135,26 @@ async function fetchCoverArtArchive(rec){
 async function fetchDeezerStrict(rec){ const q=encodeURIComponent(`artist:"${rec.artist}" album:"${rec.title}"`); const data=await deezerJSONP(`https://api.deezer.com/search/album?q=${q}`,9000); const list=(data&&data.data)||[]; const exact=list.find(a=>NOR_FLAT(a.artist&&a.artist.name)===NOR_FLAT(rec.artist) && titleKey(a.title)===titleKey(rec.title)); if(exact){ return exact.cover_xl || exact.cover_big || exact.cover_medium || null; } return null; }
 
 
+
 async function attemptArtwork(rec, coverEl, force=false){
   const srcKey = 'art:'+ (rec.artist||'') +'|'+ (rec.title||'');
   const cached = !force && localStorage.getItem(srcKey);
   if (cached && cached !== 'null'){ coverEl.src = cached; return true; }
+
+  const map = await loadArtIndex();
+  const key = (rec.artist||'') + '|||' + (rec.title||'');
+  const baked = map[key]?.url || "";
+
+  const direct = sanitizeCoverURL(rec.cover||"");
+  const proxy  = direct ? proxyURL(direct) : "";
+
+  const tried = [baked, direct, proxy].filter(Boolean);
+  for (const url of tried){
+    try { await loadImage(url); coverEl.src = url; localStorage.setItem(srcKey, url); return true; } catch {}
+  }
+  localStorage.setItem(srcKey, 'null');
+  return false;
+}
 
   const direct = sanitizeCoverURL(rec.cover||"");
   const proxy  = direct ? proxyURL(direct) : "";
