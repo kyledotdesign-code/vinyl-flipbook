@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vinyl Flipbook</title>
-  <meta name="description" content="Flip through a beautiful, animated carousel of your vinyl collection.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -42,6 +41,7 @@
   <footer class="app-footer"><div></div><div></div></footer>
 
   <script>
+    // Embedded initial data for zero-runtime dependency
     window.INIT_DATA = [
   {
     "artist": "ABBA",
@@ -827,12 +827,12 @@
   </script>
   <script src="./papaparse.min.js"></script>
   <script>
-    (function(){
-      var s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js';
-      s.defer=true;
-      document.currentScript.parentNode.insertBefore(s, document.currentScript);
-    })();
+  (function(){
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js';
+    s.defer=true;
+    document.currentScript.parentNode.insertBefore(s, document.currentScript);
+  })();
   </script>
   <script src="./app.js"></script>
 </body>
