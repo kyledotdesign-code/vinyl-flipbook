@@ -5,6 +5,24 @@ const SMART_FALLBACK = true;
 const USE_PROXY_ON_FAIL = true;
 
 const state = { all: window.INIT_DATA || [], filtered: [], view: 'flip' };
+
+// Pre-baked cover index loaded from /public/art-index.json
+let ART_MAP = null;
+async function loadArtIndex(){
+  if (ART_MAP) return ART_MAP;
+  try {
+    const res = await fetch('art-index.json', { cache: 'no-store' });
+    if (res.ok){
+      ART_MAP = await res.json();
+    } else {
+      ART_MAP = {};
+    }
+  } catch {
+    ART_MAP = {};
+  }
+  return ART_MAP;
+}
+
 let _softTimer=null;
 
 function applyCachedGenre(rec){
@@ -91,21 +109,25 @@ async function fetchCoverArtArchive(rec){
 
 async function fetchDeezerStrict(rec){ const q=encodeURIComponent(`artist:"${rec.artist}" album:"${rec.title}"`); const data=await deezerJSONP(`https://api.deezer.com/search/album?q=${q}`,9000); const list=(data&&data.data)||[]; const exact=list.find(a=>NOR_FLAT(a.artist&&a.artist.name)===NOR_FLAT(rec.artist) && titleKey(a.title)===titleKey(rec.title)); if(exact){ return exact.cover_xl || exact.cover_big || exact.cover_medium || null; } return null; }
 
+
 async function attemptArtwork(rec, coverEl, force=false){
-  const MIN_INFO = hasMinInfo(rec);
-  const key=cacheKey(rec);
-  const apply=async (url)=>{ if(!url) return false; try{ await loadImage(url); applyCover(coverEl,url); rec.cover=url; cache.set(key,url); return true; }catch{ return false; } };
-  const srcKey='artSrc:'+key;
-  let stepIx=Number(localStorage.getItem(srcKey)||'0');
-  const steps=[ ()=>sanitizeCoverURL(rec.cover||""), ()=> (USE_PROXY_ON_FAIL && rec.cover? proxyURL(sanitizeCoverURL(rec.cover)) : ""), ...(MIN_INFO?[ async()=> await fetchITunesStrict(rec), async()=> await fetchDeezerStrict(rec), async()=> await fetchCoverArtArchive(rec) ]:[]) ];
-  if(!force){ const cached=cache.get(key); if(cached && await apply(cached)){ maybeFetchGenre(rec); return; } }
-  for(let i=stepIx;i<steps.length;i++){ let candidate=steps[i]; try{ candidate=typeof candidate==='function'? await candidate() : candidate; if(await apply(candidate)){ localStorage.setItem(srcKey,String(i)); maybeFetchGenre(rec); return; } }catch{} localStorage.setItem(srcKey,String(i+1)); }
-  if(force){ localStorage.removeItem(srcKey); }
-  // gentle retry up to 2 times in case networks/proxies hiccup
-  const rkey='artRetry:'+key; const count=Number(localStorage.getItem(rkey)||'0');
-  if(count<2){ localStorage.setItem(rkey, String(count+1)); setTimeout(()=>{ loaderQ.push(()=>attemptArtwork(rec,coverEl,true)); }, 2500*(count+1)); }
+  const srcKey = 'art:'+ (rec.artist||'') +'|'+ (rec.title||'');
+  const cached = !force && localStorage.getItem(srcKey);
+  if (cached && cached !== 'null'){ coverEl.src = cached; return true; }
+
+  const direct = sanitizeCoverURL(rec.cover||"");
+  const proxy  = direct ? proxyURL(direct) : "";
+  const map = await loadArtIndex();
+  const key = (rec.artist||'') + '|||' + (rec.title||'');
+  const baked = map[key]?.url || "";
+
+  const tried = [direct, proxy, baked].filter(Boolean);
+  for (const url of tried){
+    try { await loadImage(url); coverEl.src = url; localStorage.setItem(srcKey, url); return true; } catch {}
+  }
+  localStorage.setItem(srcKey, 'null');
+  return false;
 }
-function applyCover(el,url){ if(!el) return; el.innerHTML=''; el.style.backgroundImage="url('"+url+"')"; }
 
 async function maybeFetchGenre(rec){
   const gKey='genre:'+(rec.artist||'').toLowerCase()+'|'+(rec.title||'').toLowerCase();
@@ -251,3 +273,7 @@ async function enrichGenresAll(){
     pump();
   });
 }
+
+// Remote lookups disabled in baked mode.
+async function fetchITunesStrict(){return null}
+async function fetchDeezerStrict(){return null}
