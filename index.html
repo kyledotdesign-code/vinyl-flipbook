@@ -16,9 +16,8 @@
       <div class="logo">🎵</div>
       <h1>Vinyl Flipbook</h1>
     </div>
-    <div class="menu-bar">
-      <button id="menuToggle" class="menu-btn">☰</button>
-      <div class="controls">
+    <button id="menuToggle" class="icon-btn" aria-expanded="false" aria-controls="controls">☰</button>
+    <div id="controls" class="controls">
       <input id="search" type="search" placeholder="Search artist, album, year, genre…" spellcheck="false"/>
       <select id="sort">
         <option value="title">Sort: Title</option>
@@ -31,22 +30,18 @@
         <input id="fileInput" type="file" accept=".json,.csv" />
         Import CSV/JSON
       </label>
-      
-    </div>
-        </div>
     </div>
   </header>
 
   <main>
-    <button id="prevBtn" class="nav-btn">⟨</button>
-    <button id="nextBtn" class="nav-btn">⟩</button>
+    <button id="prevBtn" class="nav-btn left" aria-label="Previous">‹</button>
     <div id="carousel" class="carousel" aria-live="polite"></div>
+    <button id="nextBtn" class="nav-btn right" aria-label="Next">›</button>
   </main>
 
-  
+  <footer class="app-footer"><div></div><div></div></footer>
 
   <script>
-    // Embedded initial data (normalized keys)
     window.INIT_DATA = [
   {
     "artist": "ABBA",
@@ -832,14 +827,12 @@
   </script>
   <script src="./papaparse.min.js"></script>
   <script>
-  // Load Fuse.js for fuzzy search (CDN); app will gracefully fallback if blocked
-  (function(){
-    var s=document.createElement("script");
-    s.src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js";
-    s.defer=true;
-    s.onerror=function(){console.warn("Fuse.js CDN failed; using basic search fallback.")};
-    document.currentScript.parentNode.insertBefore(s, document.currentScript);
-  })();
+    (function(){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js';
+      s.defer=true;
+      document.currentScript.parentNode.insertBefore(s, document.currentScript);
+    })();
   </script>
   <script src="./app.js"></script>
 </body>
