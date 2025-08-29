@@ -4,10 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vinyl Collection</title>
+  <link rel="manifest" href="./manifest.v28.json">
+  <meta name="theme-color" content="#0e0f12"/>
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.v26.css">
+  <link rel="stylesheet" href="./style.v28.css">
 </head>
 <body>
   <header class="app-header">
@@ -19,6 +22,7 @@
       <input id="search" type="search" placeholder="Search" spellcheck="false"/>
     </div>
     <div class="toolbar">
+      <button id="viewToggle" class="tool" aria-pressed="false" title="Toggle view">View: Flip</button>
       <select id="sort" class="tool"> 
         <option value="title">Sort: Title</option>
         <option value="artist">Sort: Artist</option>
@@ -27,7 +31,9 @@
       <button id="shuffle" class="tool">Shuffle</button>
       <a href="https://docs.google.com/spreadsheets/d/1wNsjoZ5UcucOrTUokWfETyx_C5xMKtwWZ7LeDjdi6sI/edit?usp=sharing" class="tool" target="_blank" rel="noopener">Google Sheet</a>
       <button id="refreshArt" class="tool" title="Force reload cover art">Refresh Art</button>
-      <button id="deepRefresh" class="tool" title="Clear cache & try multiple sources">Deep Refresh</button>
+      <button id="deepRefresh" class="tool" title="Clear cache & retry sources">Deep Refresh</button>
+      <button id="statsBtn" class="tool" title="View collection stats">Stats</button>
+      <button id="installBtn" class="tool" hidden>Install App</button>
     </div>
   </header>
 
@@ -36,6 +42,29 @@
     <div id="lane" class="lane" aria-live="polite"></div>
     <button id="nextBtn" class="nav-btn right" aria-label="Next"><span class="icon">›</span></button>
   </main>
+
+  <!-- Stats Modal -->
+  <div id="statsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2 id="statsTitle">Collection Stats</h2>
+        <button id="closeStats" class="tool small" aria-label="Close">Close</button>
+      </div>
+      <div class="modal-content">
+        <div id="statsSummary" class="stats-summary"></div>
+        <div class="stats-grid">
+          <div>
+            <h3>Top Artists</h3>
+            <div id="topArtists" class="bars"></div>
+          </div>
+          <div>
+            <h3>Genres</h3>
+            <div id="genres" class="bars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     window.SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJ7Jiw68O2JXlYMFddNYg7z622NoOjJ0Iz6A0yWT6afvrftLnc-OrN7loKD2W7t7PDbqrJpzLjtKDu/pub?gid=0&single=true&output=csv";
@@ -46,6 +75,6 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="./app.v26.js" defer></script>
+  <script src="./app.v28.js" defer></script>
 </body>
 </html>
