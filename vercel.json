@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/app.v15.js",
+      "source": "/app.v16.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/style.v15.css",
+      "source": "/style.v16.css",
       "headers": [
         {
           "key": "Cache-Control",
