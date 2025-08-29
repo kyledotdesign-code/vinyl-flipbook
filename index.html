@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vinyl Collection</title>
-  <link rel="manifest" href="./manifest.v28.json">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="manifest" href="./manifest.v31.json">
   <meta name="theme-color" content="#0e0f12"/>
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.v29.css">
+  <link rel="stylesheet" href="./style.v31.css">
 </head>
 <body>
   <header class="app-header">
@@ -34,10 +35,6 @@
       <button id="statsBtn" class="tool" title="View collection stats">Stats</button>
       <button id="installBtn" class="tool" hidden>Install App</button>
     </div>
-    <div id="installHint" class="install-hint" hidden>
-      <span>On iPhone: Share → <b>Add to Home Screen</b></span>
-      <button id="howInstall" class="tool small">How?</button>
-    </div>
   </header>
 
   <main>
@@ -57,27 +54,14 @@
         <div id="statsSummary" class="stats-summary"></div>
         <div class="stats-grid">
           <div>
+            <h3>Top Genres</h3>
+            <div id="topGenres" class="bars"></div>
+          </div>
+          <div>
             <h3>Top Artists</h3>
             <div id="topArtists" class="bars"></div>
           </div>
-          <div>
-            <h3>Genres</h3>
-            <div id="genres" class="bars"></div>
-          </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Install Instructions Modal -->
-  <div id="installModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="installTitle">
-    <div class="modal-sheet">
-      <div class="modal-head">
-        <h2 id="installTitle">Install on your phone</h2>
-        <button id="closeInstall" class="tool small" aria-label="Close">Close</button>
-      </div>
-      <div class="modal-content">
-        <div id="installSteps" class="install-steps"></div>
       </div>
     </div>
   </div>
@@ -88,6 +72,6 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="./app.v29.js" defer></script>
+  <script src="./app.v31.js" defer></script>
 </body>
 </html>
