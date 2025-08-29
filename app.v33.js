@@ -5,6 +5,8 @@ const SMART_FALLBACK = true;
 const USE_PROXY_ON_FAIL = true;
 
 const state = { all: window.INIT_DATA || [], filtered: [], view: 'flip' };
+let _softTimer=null;
+function scheduleSoftRender(){ if(_softTimer) return; _softTimer=setTimeout(()=>{ _softTimer=null; try{ render(); }catch(e){} }, 500); }
 let fuse = null;
 let currentQuery = "";
 
@@ -54,14 +56,18 @@ async function fetchITunesStrict(rec){ const tries=[ await itunesSearch(`${rec.a
 async function fetchDeezerStrict(rec){ const q=encodeURIComponent(`artist:"${rec.artist}" album:"${rec.title}"`); const data=await deezerJSONP(`https://api.deezer.com/search/album?q=${q}`,9000); const list=(data&&data.data)||[]; const exact=list.find(a=>NOR_FLAT(a.artist&&a.artist.name)===NOR_FLAT(rec.artist) && titleKey(a.title)===titleKey(rec.title)); if(exact){ return exact.cover_xl || exact.cover_big || exact.cover_medium || null; } return null; }
 
 async function attemptArtwork(rec, coverEl, force=false){
+  const MIN_INFO = hasMinInfo(rec);
   const key=cacheKey(rec);
   const apply=async (url)=>{ if(!url) return false; try{ await loadImage(url); applyCover(coverEl,url); rec.cover=url; cache.set(key,url); return true; }catch{ return false; } };
   const srcKey='artSrc:'+key;
   let stepIx=Number(localStorage.getItem(srcKey)||'0');
-  const steps=[ ()=>sanitizeCoverURL(rec.cover||""), ()=> (USE_PROXY_ON_FAIL && rec.cover? proxyURL(sanitizeCoverURL(rec.cover)) : ""), async()=> await fetchITunesStrict(rec), async()=> await fetchDeezerStrict(rec) ];
+  const steps=[ ()=>sanitizeCoverURL(rec.cover||""), ()=> (USE_PROXY_ON_FAIL && rec.cover? proxyURL(sanitizeCoverURL(rec.cover)) : ""), ...(MIN_INFO?[ async()=> await fetchITunesStrict(rec), async()=> await fetchDeezerStrict(rec) ]:[]) ];
   if(!force){ const cached=cache.get(key); if(cached && await apply(cached)){ maybeFetchGenre(rec); return; } }
   for(let i=stepIx;i<steps.length;i++){ let candidate=steps[i]; try{ candidate=typeof candidate==='function'? await candidate() : candidate; if(await apply(candidate)){ localStorage.setItem(srcKey,String(i)); maybeFetchGenre(rec); return; } }catch{} localStorage.setItem(srcKey,String(i+1)); }
   if(force){ localStorage.removeItem(srcKey); }
+  // gentle retry up to 2 times in case networks/proxies hiccup
+  const rkey='artRetry:'+key; const count=Number(localStorage.getItem(rkey)||'0');
+  if(count<2){ localStorage.setItem(rkey, String(count+1)); setTimeout(()=>{ loaderQ.push(()=>attemptArtwork(rec,coverEl,true)); }, 2500*(count+1)); }
 }
 function applyCover(el,url){ if(!el) return; el.innerHTML=''; el.style.backgroundImage="url('"+url+"')"; }
 
@@ -69,7 +75,7 @@ async function maybeFetchGenre(rec){
   const gKey='genre:'+(rec.artist||'').toLowerCase()+'|'+(rec.title||'').toLowerCase();
   if(rec.genre && rec.genre.trim()) return;
   const cached=cache.get(gKey); if(cached){ rec.genre=cached; return; }
-  try{ const data=await itunesSearch(`${rec.artist} ${rec.title}`,''); if(data&&data.results&&data.results.length){ let best=data.results.find(r=>strictOk(rec,r)); if(!best) best=data.results[0]; const g=best&&best.primaryGenreName; if(g){ rec.genre=g; cache.set(gKey,g); } } }catch{}
+  try{ const data=await itunesSearch(`${rec.artist} ${rec.title}`,''); if(data&&data.results&&data.results.length){ let best=data.results.find(r=>strictOk(rec,r)); if(!best) best=data.results[0]; const g=best&&best.primaryGenreName; if(g){ rec.genre=g; cache.set(gKey,g); if(window.scheduleSoftRender) scheduleSoftRender(); } } }catch{}
 }
 
 // queue & lazy
@@ -115,7 +121,6 @@ function tile(rec, idx){
   const title=document.createElement('div'); title.className='title'; title.innerHTML=hi(rec.title,currentQuery);
   const artist=document.createElement('div'); artist.className='artist'; artist.innerHTML=hi(rec.artist,currentQuery);
   caption.appendChild(title); caption.appendChild(artist);
-  const chips=genreChips(rec); if(chips) caption.appendChild(chips);
 
   wrap.appendChild(card); wrap.appendChild(caption);
   return wrap;
@@ -188,6 +193,25 @@ function build(){ state.filtered = normalizeData(state.all); sortBy('title'); bu
     const bindNav=(btn,dir)=>{ if(!btn) return; ['click','pointerdown','touchstart','mousedown'].forEach(type=>{ btn.addEventListener(type,(e)=>{ if(state.view!=='flip') return; e.stopPropagation(); e.preventDefault(); page(dir); }, {passive:false}); }); };
     bindNav(document.getElementById('prevBtn'),-1); bindNav(document.getElementById('nextBtn'),1);
     const l=document.getElementById('lane'); l.addEventListener('wheel', (e)=>{ if(state.view==='flip' && Math.abs(e.deltaY)>Math.abs(e.deltaX)){ l.scrollLeft += e.deltaY; if(e.cancelable) e.preventDefault(); } }, {passive:false});
-    registerSW(); build(); await fetchSheetCsv();
+    registerSW(); build(); await fetchSheetCsv(); try{ await enrichGenresAll(); }catch(e){}
   });
 })();
+
+// batch-enrich genres for all records (limit concurrency)
+async function enrichGenresAll(){
+  const lacking = normalizeData(state.all).filter(r => !r.genre || !r.genre.trim());
+  let idx = 0, active = 0, max = 4;
+  return new Promise(resolve => {
+    const pump = () => {
+      if (idx >= lacking.length && active === 0) return resolve();
+      while (active < max && idx < lacking.length){
+        const rec = lacking[idx++];
+        active++;
+        Promise.resolve(maybeFetchGenre(rec)).catch(()=>{}).finally(()=>{
+          active--; pump();
+        });
+      }
+    };
+    pump();
+  });
+}
