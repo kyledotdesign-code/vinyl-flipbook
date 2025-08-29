@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.v24.css">
+  <link rel="stylesheet" href="./style.v25.css">
 </head>
 <body>
   <header class="app-header">
@@ -16,7 +16,7 @@
       <h1>Vinyl Collection</h1>
     </div>
     <div class="search-wrap">
-      <input id="search" type="search" placeholder="Search artist, album, genre…" spellcheck="false"/>
+      <input id="search" type="search" placeholder="Search" spellcheck="false"/>
     </div>
     <div class="toolbar">
       <select id="sort" class="tool"> 
@@ -25,11 +25,9 @@
         <option value="random">Sort: Random</option>
       </select>
       <button id="shuffle" class="tool">Shuffle</button>
-      <label class="tool file-btn">
-        <input id="fileInput" type="file" accept=".json,.csv"/>
-        Import
-      </label>
+      <a href="https://docs.google.com/spreadsheets/d/1wNsjoZ5UcucOrTUokWfETyx_C5xMKtwWZ7LeDjdi6sI/edit?usp=sharing" class="tool" target="_blank" rel="noopener">Google Sheet</a>
       <button id="refreshArt" class="tool" title="Force reload cover art">Refresh Art</button>
+      <button id="deepRefresh" class="tool" title="Clear cache & try multiple sources">Deep Refresh</button>
     </div>
   </header>
 
@@ -48,6 +46,6 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="./app.v24.js" defer></script>
+  <script src="./app.v25.js" defer></script>
 </body>
 </html>
