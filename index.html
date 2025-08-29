@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.v28.css">
+  <link rel="stylesheet" href="./style.v29.css">
 </head>
 <body>
   <header class="app-header">
@@ -22,7 +22,7 @@
       <input id="search" type="search" placeholder="Search" spellcheck="false"/>
     </div>
     <div class="toolbar">
-      <button id="viewToggle" class="tool" aria-pressed="false" title="Toggle view">View: Flip</button>
+      <button id="viewToggle" class="tool" aria-pressed="false" title="Toggle view">View: Scroll</button>
       <select id="sort" class="tool"> 
         <option value="title">Sort: Title</option>
         <option value="artist">Sort: Artist</option>
@@ -30,10 +30,13 @@
       </select>
       <button id="shuffle" class="tool">Shuffle</button>
       <a href="https://docs.google.com/spreadsheets/d/1wNsjoZ5UcucOrTUokWfETyx_C5xMKtwWZ7LeDjdi6sI/edit?usp=sharing" class="tool" target="_blank" rel="noopener">Google Sheet</a>
-      <button id="refreshArt" class="tool" title="Force reload cover art">Refresh Art</button>
-      <button id="deepRefresh" class="tool" title="Clear cache & retry sources">Deep Refresh</button>
+      <button id="refreshArt" class="tool" title="Clear cache & retry sources">Refresh Art</button>
       <button id="statsBtn" class="tool" title="View collection stats">Stats</button>
       <button id="installBtn" class="tool" hidden>Install App</button>
+    </div>
+    <div id="installHint" class="install-hint" hidden>
+      <span>On iPhone: Share → <b>Add to Home Screen</b></span>
+      <button id="howInstall" class="tool small">How?</button>
     </div>
   </header>
 
@@ -66,15 +69,25 @@
     </div>
   </div>
 
+  <!-- Install Instructions Modal -->
+  <div id="installModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="installTitle">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2 id="installTitle">Install on your phone</h2>
+        <button id="closeInstall" class="tool small" aria-label="Close">Close</button>
+      </div>
+      <div class="modal-content">
+        <div id="installSteps" class="install-steps"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     window.SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJ7Jiw68O2JXlYMFddNYg7z622NoOjJ0Iz6A0yWT6afvrftLnc-OrN7loKD2W7t7PDbqrJpzLjtKDu/pub?gid=0&single=true&output=csv";
-    window.INIT_DATA = [
-      {"Artist":"Joni Mitchell","Album":"Blue","Genre":"Folk"},
-      {"Artist":"Maggie Rogers","Album":"Surrender","Genre":"Pop"}
-    ];
+    window.INIT_DATA = []; // starts empty, loads from sheet
   </script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="./app.v28.js" defer></script>
+  <script src="./app.v29.js" defer></script>
 </body>
 </html>
