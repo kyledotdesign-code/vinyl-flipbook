@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Bake album art once into a static index (and optionally download images).
+ * Bake album art + genres into a static index.
  * Usage:
- *   node scripts/bake-art.js --sheet "https://docs.google.com/spreadsheets/.../output=csv" [--download]
- * Or:
- *   SHEET_CSV_URL=... node scripts/bake-art.js --download
+ *   node scripts/bake-art.js --sheet "<CSV_URL>" [--download]
+ * Env alternative:
+ *   SHEET_CSV_URL=<CSV_URL> node scripts/bake-art.js --download
  *
- * Writes: public/art-index.json
- * If --download given, downloads images to public/covers/*.jpg and rewrites URLs to those local files.
+ * Outputs:
+ *   public/art-index.json  (map: "Artist|||Title" -> { url, src, genre })
+ *   public/covers/*        (only when --download used)
  */
 import fs from 'fs';
 import path from 'path';
@@ -86,10 +87,12 @@ async function appleLookup(artist, album){
     const keyA = norm(artist), keyT = norm(album);
     const cand = (j.results||[]).find(x => norm(x.artistName)===keyA && norm(x.collectionName)===keyT);
     if (cand){
-      return cand.artworkUrl100?.replace('100x100bb','1200x1200bb');
+      const art = cand.artworkUrl100?.replace('100x100bb','1200x1200bb') || null;
+      const genre = cand.primaryGenreName || null;
+      return { art, genre, apple: cand };
     }
   }catch{}
-  return null;
+  return { art:null, genre:null };
 }
 
 async function deezerLookup(artist, album){
@@ -99,9 +102,13 @@ async function deezerLookup(artist, album){
     const j = await r.json();
     const keyA = norm(artist), keyT = norm(album);
     const cand=(j.data||[]).find(x=> norm(x.artist?.name||'')===keyA && norm(x.title)===keyT);
-    if (cand) return cand.cover_xl || cand.cover_big || cand.cover_medium || cand.cover;
+    if (cand){
+      const art = cand.cover_xl || cand.cover_big || cand.cover_medium || cand.cover || null;
+      // deezer's album search object doesn't always carry genre; skip second fetch to avoid rate hits
+      return { art, genre:null, deezer: cand };
+    }
   }catch{}
-  return null;
+  return { art:null, genre:null };
 }
 
 async function mbidFor(artist, album){
@@ -113,6 +120,41 @@ async function mbidFor(artist, album){
     const rg = (j['release-groups']||[])[0];
     return rg?.id || null;
   }catch{}
+  return null;
+}
+
+const TAG_MAP = {
+  'rock':'Rock','pop':'Pop','hip hop':'Hip-Hop','rap':'Hip-Hop','r&b':'R&B','soul':'Soul','jazz':'Jazz',
+  'classical':'Classical','electronic':'Electronic','edm':'Electronic','dance':'Electronic','house':'Electronic',
+  'techno':'Electronic','metal':'Metal','punk':'Punk','indie':'Indie','alternative':'Alternative',
+  'folk':'Folk','country':'Country','blues':'Blues','reggae':'Reggae','soundtrack':'Soundtrack','score':'Soundtrack'
+};
+
+function mapTagToGenre(tag){
+  if (!tag) return null;
+  const t = tag.toLowerCase();
+  // exact or startsWith match
+  for (const k of Object.keys(TAG_MAP)){
+    if (t===k || t.startsWith(k)) return TAG_MAP[k];
+  }
+  // common fallbacks
+  if (t.includes('alt')) return 'Alternative';
+  if (t.includes('singer-songwriter')) return 'Folk';
+  return null;
+}
+
+async function mbGenreByRG(mbid){
+  if (!mbid) return null;
+  try {
+    const r = await fetch(`http://musicbrainz.org/ws/2/release-group/${mbid}?inc=tags&fmt=json`,
+      { headers: { 'User-Agent': 'vinyl-collection-bake/1.0 (vercel)' }});
+    const j = await r.json();
+    const tags = (j.tags||[]).sort((a,b)=>(b.count||0)-(a.count||0));
+    for (const t of tags){
+      const g = mapTagToGenre(t.name);
+      if (g) return g;
+    }
+  } catch {}
   return null;
 }
 
@@ -129,34 +171,34 @@ async function caaCover(mbid){
   return null;
 }
 
-async function resolveCover(artist, album, sheetUrl){
-  // 1) sheet
+async function resolveCoverAndGenre(artist, album, sheetUrl){
+  // 0) Sheet URL (direct/proxy)
   const direct = toDirectUrl(sheetUrl || '');
-  const proxy = direct ? `https://images.weserv.nl/?url=${encodeURIComponent(direct.replace(/^https?:\/\//,''))}` : null;
-  const u1 = await firstOk([direct, proxy]);
-  if (u1) return { url: u1, src: 'sheet' };
+  const proxy  = direct ? `https://images.weserv.nl/?url=${encodeURIComponent(direct.replace(/^https?:\/\//,''))}` : null;
+  const fromSheet = await firstOk([direct, proxy]);
 
-  // 2) apple
+  // 1) Apple (art + genre)
   const apple = await appleLookup(artist, album);
-  if (apple && await okImage(apple)) return { url: apple, src: 'apple' };
+  let art = fromSheet || (await firstOk([apple.art]));
+  let genre = apple.genre;
 
-  // 3) deezer
-  const dz = await deezerLookup(artist, album);
-  if (dz && await okImage(dz)) return { url: dz, src: 'deezer' };
+  // 2) Deezer (art only; keep genre if still null later)
+  if (!art){
+    const dz = await deezerLookup(artist, album);
+    art = await firstOk([dz.art]);
+  }
 
-  // 4) CAA
+  // 3) MusicBrainz/CAA (art), and MB tags if genre missing
   const mbid = await mbidFor(artist, album);
-  const caa = await caaCover(mbid);
-  if (caa) return { url: caa, src: 'caa' };
+  if (!art){
+    const caa = await caaCover(mbid);
+    art = caa || art;
+  }
+  if (!genre){
+    genre = await mbGenreByRG(mbid);
+  }
 
-  return { url: null, src: 'none' };
-}
-
-async function downloadTo(url, destPath){
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('download failed');
-  const buf = Buffer.from(await r.arrayBuffer());
-  fs.writeFileSync(destPath, buf);
+  return { url: art || null, src: art ? (fromSheet ? 'sheet' : (apple.art && art===apple.art ? 'apple' : 'caa_or_dz')) : 'none', genre: genre || null };
 }
 
 (async function main(){
@@ -165,32 +207,50 @@ async function downloadTo(url, destPath){
   const csv = await rs.text();
   const rows = parse(csv, { columns: true, skip_empty_lines: true });
 
-  // Expect columns: Title, Artist, Genre (optional), Cover (optional), Year (optional)
   const out = {};
   for (const row of rows){
     const title = (row['Title'] || row['Album'] || row['album'] || '').trim();
     const artist = (row['Artist'] || row['artist'] || '').trim();
     const cover  = (row['Cover']  || row['Image']  || row['Art']    || '').trim();
+    const preset = (row['Genre']  || row['genre']  || '').trim();
     if (!title || !artist) continue;
 
     const key = `${artist}|||${title}`;
     const slug = `${slugify(artist)}__${slugify(title)}__${hash(key)}`;
 
     console.log('→', artist, '-', title);
-    let rec = await resolveCover(artist, title, cover);
+    let rec = { url:null, src:'none', genre: preset || null };
+
+    // Only resolve if we need art or genre
+    const needArt = true;
+    const needGenre = !rec.genre;
+
+    if (needArt || needGenre){
+      const resolved = await resolveCoverAndGenre(artist, title, cover);
+      rec.url = resolved.url || rec.url;
+      rec.src = resolved.src || rec.src;
+      rec.genre = rec.genre || resolved.genre || null;
+    }
+
     if (rec.url && SHOULD_DL){
       const ext = rec.url.split('?')[0].split('.').pop().toLowerCase();
       const safeExt = ['jpg','jpeg','png','webp'].includes(ext) ? ext : 'jpg';
       const dest = path.join(coversDir, `${slug}.${safeExt}`);
       try {
-        await downloadTo(rec.url, dest);
-        rec.url = `/covers/${path.basename(dest)}`;
+        const rr = await fetch(rec.url);
+        if (rr.ok){
+          const buf = Buffer.from(await rr.arrayBuffer());
+          fs.writeFileSync(dest, buf);
+          rec.url = `/covers/${path.basename(dest)}`;
+          rec.src = 'local';
+        }
       } catch(e){
         console.warn('   download failed, keeping remote URL');
       }
     }
+
     out[key] = rec;
-    await sleep(120); // be gentle with public APIs
+    await sleep(120); // polite to public APIs
   }
 
   const outPath = path.join(outDir, 'art-index.json');

@@ -8,6 +8,15 @@ const state = { all: window.INIT_DATA || [], filtered: [], view: 'flip' };
 
 // Pre-baked cover index loaded from /public/art-index.json
 let ART_MAP = null;
+
+function getBakedGenre(rec){
+  if (rec && rec.genre && String(rec.genre).trim()) return rec.genre;
+  if (!ART_MAP) return null;
+  const key = (rec.artist||'') + '|||' + (rec.title||'');
+  const g = ART_MAP[key]?.genre;
+  return g || null;
+}
+
 async function loadArtIndex(){
   if (ART_MAP) return ART_MAP;
   try {
@@ -241,8 +250,20 @@ function applySearch(q){ currentQuery=q||''; const parts=currentQuery.toLowerCas
 
 // stats
 function splitGenres(s){ return (s||'').split(/[\/,;&|•·]+|\s+\band\b\s+|\s*\+\s*/i).map(t=>t.trim()).filter(Boolean).map(x=>x.replace(/\b\w/g,m=>m.toUpperCase())); }
-function buildStats(items){ const all=normalizeData(items).map(applyCachedGenre); const total=all.length; const gset=new Set(); const gcount=new Map();
-  for(const r of all){ for(const g of splitGenres(r.genre)){ gset.add(g); const key=g.toLowerCase(); gcount.set(key,(gcount.get(key)||0)+1);} }
+
+function buildStats(items){
+  const all = normalizeData(items);
+  const total = all.length;
+  const gcount = new Map();
+  for (const r of all){
+    const g = getBakedGenre(r);
+    if (!g) continue;
+    const key = g;
+    gcount.set(key, (gcount.get(key)||0)+1);
+  }
+  const entries = Array.from(gcount.entries()).sort((a,b)=>b[1]-a[1]);
+  return { total, genres: entries };
+}
   const topGenres=Array.from(gcount.entries()).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,v])=>[k.replace(/\b\w/g,m=>m.toUpperCase()),v]);
   const artistCount=new Map(); for(const r of all){ if(r.artist) artistCount.set(r.artist,(artistCount.get(r.artist)||0)+1); }
   const topArtists=Array.from(artistCount.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -292,7 +313,7 @@ function build(){ state.filtered = normalizeData(state.all); sortBy('title'); bu
     const bindNav=(btn,dir)=>{ if(!btn) return; ['click','pointerdown','touchstart','mousedown'].forEach(type=>{ btn.addEventListener(type,(e)=>{ if(state.view!=='flip') return; e.stopPropagation(); e.preventDefault(); page(dir); }, {passive:false}); }); };
     bindNav(document.getElementById('prevBtn'),-1); bindNav(document.getElementById('nextBtn'),1);
     const l=document.getElementById('lane'); l.addEventListener('wheel', (e)=>{ if(state.view==='flip' && Math.abs(e.deltaY)>Math.abs(e.deltaX)){ l.scrollLeft += e.deltaY; if(e.cancelable) e.preventDefault(); } }, {passive:false});
-    registerSW(); build(); await fetchSheetCsv(); try{ await enrichGenresAll(); }catch(e){}
+    registerSW(); await loadArtIndex(); build(); await fetchSheetCsv(); try{ await enrichGenresAll(); }catch(e){}
   });
 })();
 
