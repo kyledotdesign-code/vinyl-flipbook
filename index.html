@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./style.v14.css">
+  <link rel="stylesheet" href="./style.v15.css">
 </head>
 <body>
   <header class="app-header">
@@ -44,11 +44,48 @@
 
   <footer class="app-footer"></footer>
 
+  <!-- Data bootstrap: try to auto-load a dataset if it's in the repo -->
   <script>
-    window.INIT_DATA = window.INIT_DATA || [];
+    window.INIT_DATA = [];
+    window.__DATA_PROMISE = (async () => {
+      const CANDIDATES = [
+        './vinyl_collection.cleaned.json',
+        './vinyl.json',
+        './vinyl-data.json',
+        './Vinyl Collection - Sheet1.csv',
+        './vinyl.csv'
+      ];
+      for (const path of CANDIDATES) {
+        try {
+          const res = await fetch(path, { cache: 'no-store' });
+          if (!res.ok) continue;
+          if (path.endsWith('.json')) {
+            const data = await res.json();
+            window.INIT_DATA = Array.isArray(data) ? data : (data.values || data.data || []);
+          } else if (path.endsWith('.csv')) {
+            const text = await res.text();
+            if (window.Papa) {
+              const parsed = window.Papa.parse(text, { header: true, skipEmptyLines: true });
+              window.INIT_DATA = parsed.data;
+            } else {
+              // tiny csv parse fallback
+              const lines = text.split(/\r?\n/).filter(Boolean);
+              const headers = (lines.shift() || '').split(',').map(s => s.trim());
+              window.INIT_DATA = lines.map(line => {
+                const cols = line.split(',');
+                const o = {}; headers.forEach((h,i) => o[h] = cols[i]);
+                return o;
+              });
+            }
+          }
+          if (window.INIT_DATA && window.INIT_DATA.length) break;
+        } catch (e) { /* ignore */ }
+      }
+    })();
   </script>
+
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="./app.v14.js"></script>
+  <script src="./app.v15.js" defer></script>
 </body>
 </html>
